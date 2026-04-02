@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>藍波健康體能 - 保健品內部報價系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .card-shadow { box-shadow: 0 2px 15px -3px rgba(0,0,0,0.07), 0 4px 6px -2px rgba(0,0,0,0.05); }
+        [v-cloak] { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div v-if="!isAuthenticated" class="fixed inset-0 z-[100] bg-blue-900 flex items-center justify-center p-6">
+            <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl text-center">
+                <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <i class="fa-solid fa-lock text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">內部員工系統</h2>
+                <p class="text-gray-500 mb-6">請輸入存取密碼以查看報價</p>
+                <input v-model="passwordInput" @keyup.enter="checkPassword" type="password" placeholder="請輸入密碼" 
+                       class="w-full px-4 py-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none mb-4 text-center text-xl tracking-widest">
+                <button @click="checkPassword" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition">
+                    登入系統
+                </button>
+                <p v-if="loginError" class="text-red-500 mt-4 text-sm font-medium">密碼錯誤</p>
+            </div>
+        </div>
+
+        <div v-else>
+            <div class="sticky top-0 bg-white/80 backdrop-blur-md z-30 border-b border-gray-100">
+                <div class="p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-xs font-bold px-3 py-1 bg-blue-100 text-blue-700 rounded-full">INTERNAL ONLY</span>
+                        <button @click="logout" class="text-gray-400 text-sm italic">登出</button>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-gray-400"></i>
+                        <input v-model="searchQuery" type="text" placeholder="搜尋全品項產品或成分..." 
+                               class="w-full pl-12 pr-4 py-3 bg-gray-100 border-none rounded-2xl focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div class="flex overflow-x-auto px-4 pb-3 space-x-2 no-scrollbar">
+                    <button v-for="cat in allCategories" :key="cat"
+                            @click="currentCategory = cat"
+                            :class="['whitespace-nowrap px-4 py-1.5 rounded-xl text-sm font-bold transition-all', 
+                                     currentCategory === cat ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white text-gray-500 border border-gray-200']">
+                        {{ cat }}
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-4 space-y-4">
+                <div v-for="item in filteredProducts" :key="item.name + item.spec" 
+                     class="bg-white rounded-2xl p-4 card-shadow border border-white relative overflow-hidden transition-transform active:scale-[0.98]">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span v-if="item.veg" class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-bold italic">🌿 {{ item.veg }}</span>
+                                <span class="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md font-medium">{{ item.spec }}</span>
+                            </div>
+                            <h3 class="text-lg font-bold text-gray-800 leading-tight">{{ item.name }}</h3>
+                        </div>
+                        <button @click="copyInfo(item)" class="bg-blue-50 text-blue-600 w-10 h-10 rounded-xl flex items-center justify-center active:bg-blue-600 active:text-white transition-colors">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-500 line-clamp-2 mb-4 h-10">{{ item.desc }}</p>
+                    <div class="flex items-center justify-between pt-4 border-t border-dashed border-gray-100">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-gray-400 line-through tracking-wider">市價 ${{ item.listPrice }}</span>
+                            <span class="text-sm font-bold text-gray-700 italic">末端 ${{ item.sellPrice }}</span>
+                            <span class="text-[10px] text-orange-500 font-bold mt-1">獎金 +${{ Math.round(item.sellPrice * 0.1) }}</span>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold text-blue-500 uppercase tracking-tighter">Staff Price</p>
+                            <p class="text-2xl font-black text-blue-600 tracking-tighter">${{ item.staffPrice }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <transition name="fade">
+                <div v-if="showToast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white px-6 py-3 rounded-full text-sm font-bold z-[100] shadow-xl">
+                    ✅ 已複製資訊，可直接貼給客戶
+                </div>
+            </transition>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    isAuthenticated: false, passwordInput: '', loginError: false, correctPassword: '888',
+                    searchQuery: '', currentCategory: '全部產品', showToast: false,
+                    allCategories: ['全部產品', '骨骼行動力', '女性保健', '男性活力', '腸胃代謝', '護眼腦力', '免疫體質', '外用日常'],
+                    products: [
+                        // 骨骼行動力
+                        { cat: '骨骼行動力', name: '鈣補力', spec: '60粒', veg: '', desc: '胺基酸螯合鈣333mg + D3 + K2，補鈣鎖鈣三效合一', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '骨骼行動力', name: 'CPP鈣鎂', spec: '60粒', veg: '奶素', desc: '愛爾蘭紅藻鈣 + 70種礦物質 + CPP + D3', listPrice: 1280, sellPrice: 900, staffPrice: 640 },
+                        { cat: '骨骼行動力', name: '二型膠原蛋白', spec: '60粒', veg: '', desc: '美加雙專利，葡萄糖胺/軟骨素/玻尿酸 + MSM + 魚骨鈣', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '骨骼行動力', name: '速關健', spec: '60粒', veg: '全素', desc: '德國植物配方，乳木果油 + 椰子油(MCT) + D3 + E', listPrice: 2680, sellPrice: 1800, staffPrice: 1340 },
+                        { cat: '骨骼行動力', name: '維生素D3滴液', spec: '15ml', veg: '全素', desc: '羊毛脂萃取D3 + MCT椰子油，促進鈣吸收', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '骨骼行動力', name: '水解膠原蛋白', spec: '200g', veg: '', desc: '法國Rousselot小分子胜肽，100%無添加', listPrice: 2680, sellPrice: 1800, staffPrice: 1340 },
+                        
+                        // 女性保健
+                        { cat: '女性保健', name: '芙蕾蒙', spec: '60粒', veg: '', desc: '大豆異黃酮+DHEA+月見草油+蔓越莓+聖潔莓', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '女性保健', name: '洛蔓益生菌', spec: '30包', veg: '奶素', desc: '6株專利私密益生菌+蔓越莓+洛神花+甘露糖', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '女性保健', name: '速鐵多', spec: '50粒', veg: '全素', desc: '專利螯合鐵+葉酸+B12+C，補鐵紅潤好氣色', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '女性保健', name: '法國膠原蛋白', spec: '30包', veg: '', desc: '法國Naticol 5000mg胜肽+玻尿酸+蛋白聚醣+卡姆果C', listPrice: 2980, sellPrice: 2000, staffPrice: 1490 },
+                        { cat: '女性保健', name: '麗康蜂皇乳補精', spec: '10瓶', veg: '', desc: '蜂皇乳+膠原蛋白+大豆異黃酮+血紅素鐵', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '女性保健', name: '加拿大蔓越莓濃縮', spec: '60粒', veg: '', desc: '高濃縮蔓越莓，私密呵護', listPrice: 1280, sellPrice: 900, staffPrice: 640 },
+
+                        // 男性活力
+                        { cat: '男性活力', name: '利普特', spec: '60粒', veg: '', desc: '攝護腺保養配方，守護熟齡男性', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+                        { cat: '男性活力', name: '南瓜子複方', spec: '60粒', veg: '', desc: '南瓜籽+茯苓+蕁麻+茄紅素，順暢如廁', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '男性活力', name: '御品漢方補精', spec: '10瓶', veg: '', desc: '漢方草本滋補，增強體力活力', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '男性活力', name: '德保肝', spec: '60粒', veg: '', desc: '肝臟保養，調節生理機能', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '男性活力', name: '頂級蜂皇乳（小）', spec: '120粒', veg: '', desc: '紐西蘭100%純淨，增強體力與活力', listPrice: 2680, sellPrice: 2400, staffPrice: 1340 },
+                        { cat: '男性活力', name: '頂級蜂皇乳（大）', spec: '370粒', veg: '', desc: '紐西蘭100%純淨，高活性10HDA', listPrice: 6880, sellPrice: 6000, staffPrice: 3440 },
+
+                        // 腸胃代謝
+                        { cat: '腸胃代謝', name: '易善纖AKK', spec: '60粒', veg: '全素', desc: 'AKK瘦瘦菌，促進代謝、調整體質', listPrice: 2680, sellPrice: 2000, staffPrice: 1340 },
+                        { cat: '腸胃代謝', name: '益生菌+益生元', spec: '30包', veg: '奶素', desc: '8株益生菌+專利益生元+後生元', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '腸胃代謝', name: '益生元', spec: '60包', veg: '', desc: '專利寡多醣，好菌增殖、腸道順暢', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '腸胃代謝', name: '益生菌生成物', spec: '30包', veg: '', desc: '日本BPP21技術，獨特生成物調控', listPrice: 2980, sellPrice: 1800, staffPrice: 1490 },
+                        { cat: '腸胃代謝', name: '暢纖酵素錠', spec: '100錠', veg: '奶素', desc: '植物蔬果多酚+海水礦物精華，排便順暢', listPrice: 1980, sellPrice: 1200, staffPrice: 990 },
+                        { cat: '腸胃代謝', name: '暢纖酵素錠（隨身）', spec: '14錠', veg: '奶素', desc: '隨身攜帶，方便外出使用', listPrice: 299, sellPrice: 210, staffPrice: 150 },
+                        { cat: '腸胃代謝', name: '速唐健', spec: '60粒', veg: '', desc: '植物胜肽配方，調節生理機能', listPrice: 3280, sellPrice: 2400, staffPrice: 1640 },
+                        { cat: '腸胃代謝', name: '德國新瑞克舒', spec: '60粒', veg: '', desc: '德國進口，消化道機能調理', listPrice: 2680, sellPrice: 2000, staffPrice: 1340 },
+
+                        // 護眼腦力
+                        { cat: '護眼腦力', name: '優視明', spec: '60粒', veg: '', desc: '葉黃素複方，守護明亮視野', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '優示康', spec: '60粒', veg: '', desc: '護眼配方，維持清晰舒適', listPrice: 1980, sellPrice: 1500, staffPrice: 990 },
+                        { cat: '護眼腦力', name: '思康PS', spec: '60粒', veg: '全素', desc: '磷脂絲胺酸PS+DHA藻油，思緒清晰', listPrice: 2280, sellPrice: 1680, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '藻紅素', spec: '60粒', veg: '全素', desc: '德國頂級藻紅素+亞麻仁油，守護明亮', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '易眠康', spec: '60粒', veg: '', desc: '助眠舒壓，提升睡眠品質', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '護眼腦力', name: '德國高濃度魚油', spec: '60粒', veg: '', desc: '97%高濃度Omega-3，腦力+循環', listPrice: 2280, sellPrice: 1500, staffPrice: 1140 },
+                        { cat: '護眼腦力', name: '卵磷脂', spec: '60粒', veg: '', desc: '高純度PC 38%，促進思緒靈活', listPrice: 1280, sellPrice: 1000, staffPrice: 640 },
+
+                        // 免疫體質
+                        { cat: '免疫體質', name: '日本褐藻醣膠', spec: '60粒', veg: '', desc: '小分子褐藻醣膠，調節生理與增強體力', listPrice: 3280, sellPrice: 2400, staffPrice: 1640 },
+                        { cat: '免疫體質', name: '蜂膠精華滴液', spec: '30ml', veg: '', desc: '高濃度蜂膠，天然防護、調節體質', listPrice: 1680, sellPrice: 1200, staffPrice: 840 },
+                        { cat: '免疫體質', name: '日本GSH紅景天', spec: '60粒', veg: '', desc: 'GSH穀胱甘肽+紅景天，提升活力', listPrice: 2280, sellPrice: 1800, staffPrice: 1140 },
+                        { cat: '免疫體質', name: '螺旋藻（小）', spec: '200錠', veg: '全素', desc: '豐富蛋白質+藻藍素，調節體質', listPrice: 1680, sellPrice: 1300, staffPrice: 840 },
+                        { cat: '免疫體質', name: '螺旋藻（大）', spec: '950錠', veg: '全素', desc: '豐富蛋白質+藻藍素，全方位營養', listPrice: 6880, sellPrice: 5000, staffPrice: 3440 },
+                        { cat: '免疫體質', name: '舒敏3.0益生菌', spec: '30包', veg: '奶素', desc: '過敏體質調理，改變細菌叢生態', listPrice: 1980, sellPrice: 1500, staffPrice: 990 },
+                        { cat: '免疫體質', name: '沙棘籽油軟膠囊', spec: '60粒', veg: '', desc: '俄羅斯頂級沙棘，Omega-7達35%+', listPrice: 2980, sellPrice: 2200, staffPrice: 1490 },
+                        { cat: '免疫體質', name: '沙棘籽油滴劑', spec: '30ml', veg: '', desc: '沙棘籽油液態，促進新陳代謝', listPrice: 2680, sellPrice: 2000, staffPrice: 1340 },
+
+                        // 外用日常
+                        { cat: '外用日常', name: '沙棘護理凝膠（大）', spec: '75ml', veg: '', desc: '沙棘萃取，皮膚修護保養', listPrice: 980, sellPrice: 700, staffPrice: 490 },
+                        { cat: '外用日常', name: '沙棘護理凝膠（小）', spec: '25ml', veg: '', desc: '隨身攜帶，隨時護理', listPrice: 499, sellPrice: 350, staffPrice: 250 },
+                        { cat: '外用日常', name: '德國活膚植物凝膠', spec: '30g', veg: '', desc: '德國植物配方，肌膚活膚護理', listPrice: 420, sellPrice: 300, staffPrice: 210 },
+                        { cat: '外用日常', name: '義大利精油口含錠', spec: '30錠', veg: '', desc: '義大利甘草精油，清新口氣', listPrice: 120, sellPrice: 100, staffPrice: 60 },
+                        { cat: '外用日常', name: '卡姆果C', spec: '60粒', veg: '全素', desc: '天然維生素C，抗氧化與修護', listPrice: 1280, sellPrice: 1000, staffPrice: 640 },
+                        { cat: '外用日常', name: '天然維生素B群', spec: '60粒', veg: '全素', desc: '天然酵母B群，活力補給', listPrice: 1280, sellPrice: 900, staffPrice: 640 },
+                        { cat: '外用日常', name: '亞麻仁油', spec: '60粒', veg: '', desc: '素食魚油，Omega-3好油補充', listPrice: 1980, sellPrice: 1000, staffPrice: 990 },
+                        { cat: '外用日常', name: '五行草本完全營養素', spec: '30包', veg: '', desc: '30種蔬果草本，全方位營養補給', listPrice: 1980, sellPrice: 1200, staffPrice: 990 }
+                    ]
+                }
+            },
+            computed: {
+                filteredProducts() {
+                    let list = this.products;
+                    if (this.currentCategory !== '全部產品') list = list.filter(p => p.cat === this.currentCategory);
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase();
+                        list = list.filter(p => p.name.includes(q) || p.desc.includes(q));
+                    }
+                    return list;
+                }
+            },
+            methods: {
+                checkPassword() {
+                    if (this.passwordInput === this.correctPassword) {
+                        this.isAuthenticated = true;
+                        localStorage.setItem('isLogged', 'true');
+                    } else {
+                        this.loginError = true;
+                    }
+                },
+                logout() {
+                    this.isAuthenticated = false;
+                    localStorage.removeItem('isLogged');
+                },
+                copyInfo(item) {
+                    const text = `【${item.name}】\n規格：${item.spec}\n特色：${item.desc}\n末端售價：$${item.sellPrice}`;
+                    navigator.clipboard.writeText(text);
+                    this.showToast = true;
+                    setTimeout(() => this.showToast = false, 2500);
+                }
+            },
+            mounted() {
+                if (localStorage.getItem('isLogged') === 'true') this.isAuthenticated = true;
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
