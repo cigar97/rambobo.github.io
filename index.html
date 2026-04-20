@@ -55,7 +55,7 @@
                     </div>
                     <div class="relative">
                         <i class="fa-solid fa-magnifying-glass absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="search" v-model.lazy.trim="search" placeholder="搜尋全品項產品..." 
+                        <input v-model="searchQuery" type="text" placeholder="搜尋全品項產品..." 
                                class="w-full pl-14 pr-6 py-4 bg-white border border-slate-200 rounded-[1.25rem] shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all">
                     </div>
                 </div>
